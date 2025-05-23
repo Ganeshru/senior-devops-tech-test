@@ -49,23 +49,23 @@ pipeline {
             }
         }
 
-        stage('Push to Local Minikube Registry') {
-            // This stage needs minikube CLI. It runs on the default 'any' agent.
-            steps {
-                script {
-                    echo "Loading Docker image ${IMAGE_TAG} into minikube's Docker daemon."
-                    sh "minikube image load ${IMAGE_TAG}"
-                    echo "Simulated push of Docker image to local minikube registry."
-                }
-            }
-        }
+        // stage('Push to Local Minikube Registry') {
+        //     // This stage needs minikube CLI. It runs on the default 'any' agent.
+        //     steps {
+        //         script {
+        //             echo "Loading Docker image ${IMAGE_TAG} into minikube's Docker daemon."
+        //             sh "minikube image load ${IMAGE_TAG}"
+        //             echo "Simulated push of Docker image to local minikube registry."
+        //         }
+        //     }
+        // }
 
         stage('Deploy to Minikube EKS Namespace') {
             // This stage needs kubectl. It runs on the default 'any' agent.
             steps {
                 script {
                     echo "Deploying Kubernetes resources to minikube in 'jenkins' namespace."
-                    sh 'kubectl config use minikube'
+                    //sh 'kubectl config use minikube'
                     sh 'kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -'
                     sh 'kubectl apply -f k8s/deployment.yaml -n jenkins'
                     sh 'kubectl apply -f k8s/service.yaml -n jenkins'
