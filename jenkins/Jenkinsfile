@@ -1,0 +1,105 @@
+pipeline {
+    agent any
+
+    environment {
+        // Mock AWS variables for demonstration with minikube
+        AWS_REGION = 'us-east-1'
+        ECR_REPO = 'your-ecr-repo-url' // Placeholder, won't be used directly with minikube's internal registry
+        IMAGE_TAG = "sample-node-app:${env.BUILD_NUMBER}"
+        KUBECONFIG = "${env.HOME}/.kube/config" // Ensure minikube context is active
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                // Yamllint for general YAML validation
+                sh 'yamllint k8s/'
+                // kubeval for Kubernetes manifest validation (install kubeval on Jenkins agent if not present)
+                sh 'kubeval k8s/'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir('app') {
+                    sh 'npm install'
+                    sh 'npm test' // This will run the mocked test in package.json
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build Docker image using the Dockerfile in the 'app' directory
+                    docker.build("${IMAGE_TAG}", './app')
+                }
+            }
+        }
+
+        stage('Push to Local Minikube Registry') {
+            steps {
+                // Load the Docker image into minikube's Docker daemon
+                // This simulates pushing to a registry by making the image available to minikube
+                echo "Loading Docker image ${IMAGE_TAG} into minikube's Docker daemon."
+                sh "minikube image load ${IMAGE_TAG}"
+                echo "Simulated push of Docker image to local minikube registry."
+            }
+        }
+
+        stage('Deploy to Minikube EKS Namespace') {
+            steps {
+                script {
+                    echo "Deploying Kubernetes resources to minikube in 'jenkins' namespace."
+                    // Ensure minikube context is set to deploy to
+                    sh 'kubectl config use minikube'
+                    sh 'kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -' // Create namespace if it doesn't exist
+                    sh 'kubectl apply -f k8s/deployment.yaml -n jenkins'
+                    sh 'kubectl apply -f k8s/service.yaml -n jenkins'
+                    sh 'kubectl apply -f k8s/ingress.yaml -n jenkins' // Requires minikube ingress addon enabled
+                    sh 'kubectl apply -f k8s/configmap.yaml -n jenkins'
+                    sh 'kubectl apply -f k8s/secret.yaml -n jenkins' // Handle secret creation carefully in real scenarios
+
+                    echo "Simulated deploy to minikube EKS."
+                }
+            }
+        }
+
+        stage('Helm Deploy (Optional, for staging/production pipelines)') {
+            steps {
+                script {
+                    echo "Simulating Helm deployment for staging/production environments."
+                    // For actual Helm deployment in a staging/production pipeline (e.g., in a separate Jenkinsfile or stage)
+                    // sh 'helm upgrade --install sample-node-app ./helm-chart -n jenkins --values ./helm-chart/values.yaml'
+                    echo "Helm command would be: helm upgrade --install sample-node-app ./helm-chart -n jenkins --values ./helm-chart/values.yaml"
+                }
+            }
+        }
+
+        stage('Notify') {
+            steps {
+                echo 'Simulating Slack/email notification.'
+                // Example for Slack notification (requires Slack plugin in Jenkins)
+                // slackSend channel: '#devops-notifications', message: "Pipeline ${currentBuild.fullDisplayName} finished: ${currentBuild.result}"
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline completed.'
+        }
+        failure {
+            echo 'Pipeline failed. Initiating rollback (if implemented).'
+            // Optional: Rollback on deploy failure
+            // In a real scenario, this would involve deploying a previous working version or reverting changes.
+            // For minikube, it might be `kubectl rollout undo deployment/your-app-deployment -n jenkins`
+        }
+    }
+}
