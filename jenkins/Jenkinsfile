@@ -22,7 +22,7 @@ pipeline {
                             // Install sudo if not present, then use it for apt-get commands
                             // This command should ideally run first to ensure sudo is available for subsequent apt-get calls
                             // It's safe to run even if sudo is already there.
-                            sh 'apt-get install -y sudo'
+                            sh 'su -c "apt-get update -y && apt-get install -y sudo"'
                             
                             // Now use sudo for all subsequent apt-get commands
                             sh 'sudo apt-get update -y'
