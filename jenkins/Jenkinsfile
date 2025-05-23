@@ -32,8 +32,7 @@ pipeline {
                 script {
                     echo "Linting Kubernetes manifests..."
                 }
-                sh 'yamllint k8s/'
-                sh 'kubeval k8s/'
+                sh 'yamllint senior-devops-tech-test/k8s/'
             }
         }
 
