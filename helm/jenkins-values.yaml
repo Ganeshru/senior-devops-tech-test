@@ -1,9 +1,24 @@
 # jenkins-values.yaml
-# Custom values for Jenkins Helm Chart deployment
 
 controller:
   serviceType: NodePort
-  jenkinsUrl: http://localhost:8080 # Adjust if your minikube IP is different
+  jenkinsUrl: http://localhost:8080 
+
+  # This is the critical section you need to ensure is present and correct
+  securityContext:
+    # Explicitly set runAsUser and fsGroup to 0 (root)
+    runAsUser: 0
+    fsGroup: 0 
+    # You might want to remove or comment out these if they are causing issues,
+    # or ensure they don't conflict with root access if you explicitly need it for debugging.
+    # allowPrivilegeEscalation: false 
+    # readOnlyRootFilesystem: false # Set to false if you need to write to rootfs (generally not recommended)
+
+  persistence:
+    enabled: true
+    storageClass: standard 
+    size: 10Gi 
+
   jenkins:
     installPlugins:
       - kubernetes:1.31.0
@@ -14,30 +29,26 @@ controller:
       - configuration-as-code:1670.v5666f7ee1352
       - slack:691.693.v34e6e65a_a_c51
       - email-ext:2.107.0
-    securityRealm: unsecured # Keep this if you want unsecured access for local dev
+    securityRealm: unsecured # WARNING: HIGHLY INSECURE. ONLY FOR LOCAL DEV.
 
-  # Configure pod templates for Jenkins agents
-  # This section is critical for Docker-in-Docker functionality
+  # Your agent podTemplates configuration (already correct for agents)
   podTemplates:
     - name: default
-      label: jenkins-agent # Label for the agent pod
+      label: jenkins-agent
       containers:
         - name: jnlp
-          image: jenkins/jnlp-agent:latest # Default JNLP agent image
+          image: jenkins/jnlp-agent:latest
           args: '${computer.jnlpmac} ${computer.name}'
-          # Mount the Docker socket to allow Docker commands inside the agent
           ttyEnabled: true
-          privileged: true # WARNING: 'privileged' is for development only. Not recommended for production.
+          privileged: true 
           volumeMounts:
             - name: docker-socket
               mountPath: /var/run/docker.sock
       volumes:
         - name: docker-socket
           hostPath:
-            path: /var/run/docker.sock # Path to the Docker socket on the Minikube VM
+            path: /var/run/docker.sock
             type: Directory
-      # Security Context for the agent pod
-      # This ensures the container runs with root privileges
       securityContext:
-        runAsUser: 0 # Run the agent container as root (UID 0)
-        runAsGroup: 0 # Set the primary group to root (GID 0)
+        runAsUser: 0
+        runAsGroup: 0
