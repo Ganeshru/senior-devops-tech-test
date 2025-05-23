@@ -18,9 +18,21 @@ pipeline {
 
         stage('Lint') {
             steps {
+                script {
+                    echo "Installing linting tools..."
+                    // Install yamllint (using pip, as npm package might be outdated or require Python)
+                    // Ensure Python and pip are available on the agent, or use a custom agent image
+                    // For a quick fix, if python/pip is not there, you might need to use a different installation method
+                    // For Alpine-based images (like the default Jenkins agent), apk add might be needed.
+                    // Assuming a basic agent image that can run pip:
+                    sh 'pip install yamllint'
+                    // Install kubeval (using npm, assuming node/npm is available for the app's tests)
+                    sh 'npm install -g kubeval'
+                    echo "Linting Kubernetes manifests..."
+                }
                 // Yamllint for general YAML validation
                 sh 'yamllint k8s/'
-                // kubeval for Kubernetes manifest validation (install kubeval on Jenkins agent if not present)
+                // kubeval for Kubernetes manifest validation
                 sh 'kubeval k8s/'
             }
         }
@@ -37,19 +49,29 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
+                    echo "Building Docker image ${IMAGE_TAG}..."
                     // Build Docker image using the Dockerfile in the 'app' directory
+                    // This requires Docker daemon access, which will be provided by socket mounting
                     docker.build("${IMAGE_TAG}", './app')
+                    echo "Docker image built."
                 }
             }
         }
 
         stage('Push to Local Minikube Registry') {
             steps {
-                // Load the Docker image into minikube's Docker daemon
-                // This simulates pushing to a registry by making the image available to minikube
-                echo "Loading Docker image ${IMAGE_TAG} into minikube's Docker daemon."
-                sh "minikube image load ${IMAGE_TAG}"
-                echo "Simulated push of Docker image to local minikube registry."
+                script {
+                    echo "Loading Docker image ${IMAGE_TAG} into minikube's Docker daemon."
+                    // This command runs on the Jenkins agent, which needs minikube client installed
+                    // and access to the minikube context.
+                    // For this to work, the Jenkins agent needs minikube CLI and kubectl CLI.
+                    // A simpler alternative for this specific step in a pipeline is to use
+                    // `docker save` and `docker load` via minikube ssh, but `minikube image load` is cleaner.
+                    // For this example, we'll assume minikube CLI is available on the agent.
+                    // If not, you'd need a custom agent image with minikube CLI.
+                    sh "minikube image load ${IMAGE_TAG}"
+                    echo "Simulated push of Docker image to local minikube registry."
+                }
             }
         }
 
@@ -59,7 +81,8 @@ pipeline {
                     echo "Deploying Kubernetes resources to minikube in 'jenkins' namespace."
                     // Ensure minikube context is set to deploy to
                     sh 'kubectl config use minikube'
-                    sh 'kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -' // Create namespace if it doesn't exist
+                    // Create namespace if it doesn't exist
+                    sh 'kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -'
                     sh 'kubectl apply -f k8s/deployment.yaml -n jenkins'
                     sh 'kubectl apply -f k8s/service.yaml -n jenkins'
                     sh 'kubectl apply -f k8s/ingress.yaml -n jenkins' // Requires minikube ingress addon enabled
@@ -76,6 +99,7 @@ pipeline {
                 script {
                     echo "Simulating Helm deployment for staging/production environments."
                     // For actual Helm deployment in a staging/production pipeline (e.g., in a separate Jenkinsfile or stage)
+                    // The Jenkins agent would also need Helm CLI installed.
                     // sh 'helm upgrade --install sample-node-app ./helm-chart -n jenkins --values ./helm-chart/values.yaml'
                     echo "Helm command would be: helm upgrade --install sample-node-app ./helm-chart -n jenkins --values ./helm-chart/values.yaml"
                 }
@@ -103,3 +127,4 @@ pipeline {
         }
     }
 }
+
