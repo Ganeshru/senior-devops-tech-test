@@ -16,39 +16,43 @@ pipeline {
             }
         }
         stage('Prepare Agent Tools') {
-            steps {
-                script {
-                    echo "Updating apt and installing build tools..."
-                    // Update apt and install common build tools
-                    sh 'apt-get update -y'
-                    sh 'apt-get install -y git curl bash' // Ensure git, curl, bash are present
+                    steps {
+                        script {
+                            echo "Updating apt and installing build tools..."
+                            // Install sudo if not present, then use it for apt-get commands
+                            // This command should ideally run first to ensure sudo is available for subsequent apt-get calls
+                            // It's safe to run even if sudo is already there.
+                            sh 'apt-get update -y && apt-get install -y sudo'
+                            
+                            // Now use sudo for all subsequent apt-get commands
+                            sh 'sudo apt-get update -y'
+                            sh 'sudo apt-get install -y git curl bash' // Ensure git, curl, bash are present
 
-                    echo "Installing linting and Node.js tools..."
-                    // Install Python and pip for yamllint
-                    sh 'apt-get install -y python3 python3-pip'
-                    sh 'pip install yamllint'
+                            echo "Installing linting and Node.js tools..."
+                            // Install Python and pip for yamllint
+                            sh 'sudo apt-get install -y python3 python3-pip'
+                            sh 'sudo pip install yamllint'
 
-                    // Install Node.js and npm for kubeval and app tests
-                    // Add Node.js PPA for a more recent version
-                    sh 'curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -'
-                    sh 'apt-get install -y nodejs'
-                    sh 'npm install -g kubeval'
+                            // Install Node.js and npm for kubeval and app tests
+                            // Add Node.js PPA for a more recent version
+                            sh 'curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo bash -' // Use sudo for bash pipe
+                            sh 'sudo apt-get install -y nodejs'
+                            sh 'sudo npm install -g kubeval'
 
-                    // Install kubectl and minikube CLI on the agent
-                    // For a robust setup, consider a custom Jenkins agent image with these pre-installed.
-                    echo "Installing kubectl and minikube CLI..."
-                    sh 'curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl'
-                    sh 'chmod +x ./kubectl'
-                    sh 'mv ./kubectl /usr/local/bin/kubectl'
+                            // Install kubectl and minikube CLI on the agent
+                            echo "Installing kubectl and minikube CLI..."
+                            // Use sudo for moving binaries to system PATH
+                            sh 'curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl'
+                            sh 'chmod +x ./kubectl'
+                            sh 'sudo mv ./kubectl /usr/local/bin/kubectl'
 
-                    sh 'curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64'
-                    sh 'chmod +x minikube'
-                    sh 'mv minikube /usr/local/bin/'
-                    echo "Tools prepared."
+                            sh 'curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64'
+                            sh 'chmod +x minikube'
+                            sh 'sudo mv minikube /usr/local/bin/'
+                            echo "Tools prepared."
+                        }
+                    }
                 }
-            }
-        }
-
           stage('Lint') {
             steps {
                 script {
