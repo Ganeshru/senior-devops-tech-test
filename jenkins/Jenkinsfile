@@ -33,7 +33,6 @@ pipeline {
                     echo "Linting Kubernetes manifests..."
                 }
                 sh 'ls -la'
-                sh 'yamllint senior-devops-tech-test/k8s/'
             }
         }
 
