@@ -1,5 +1,26 @@
 pipeline {
-    agent any
+    // Change agent from 'any' to a specific Docker image
+    agent {
+        docker {
+            // Use an existing open-source image with linting tools,
+            // or build your own.
+            // Some options:
+            // 1. A generic DevOps image: 'alpine/git:latest' might have some, but not all.
+            // 2. Images specifically for CI/CD with Kubernetes tools:
+            //    'lachlanevans/k8s-kubectl:latest' often includes kubectl.
+            //    You might need to find one that also pre-installs yamllint and kubeval,
+            //    or build your own on top of such an image.
+            // For demonstration, let's assume we'll use a base image and install them,
+            // or ideally, you'd find a pre-built one.
+            // If you can't find one, you'll need to create your own Dockerfile.
+            image 'python:3.9-slim-buster' // A common base for installing python tools like yamllint
+            args '-v /var/run/docker.sock:/var/run/docker.sock' // Keep Docker socket mounting for builds
+            // Ensure minikube's kubectl config is accessible if needed within this container
+            // -v "${env.HOME}/.kube:/root/.kube" might be needed if kubectl commands are run directly here.
+            // For `minikube image load`, the minikube CLI is needed.
+            // This setup becomes more complex. Let's simplify and suggest a custom image for the linting stage.
+        }
+    }
 
     environment {
         // Mock AWS variables for demonstration with minikube
@@ -16,42 +37,17 @@ pipeline {
             }
         }
 
-
-      stage('Prepare Agent Tools') {
-            steps {
-                script {
-                    echo "Updating apt and installing build tools..."
-                    // No need for sudo/su if runAsUser: 0 is applied to the pod
-                    sh 'apt-get update -y'
-                    sh 'apt-get install -y git curl bash' // Ensure git, curl, bash are present
-
-                    echo "Installing linting and Node.js tools..."
-                    // Install Python and pip for yamllint
-                    sh 'apt-get install -y python3 python3-pip'
-                    sh 'pip install yamllint'
-
-                    // Install Node.js and npm for kubeval and app tests
-                    // Add Node.js PPA for a more recent version
-                    sh 'curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -'
-                    sh 'apt-get install -y nodejs'
-                    sh 'npm install -g kubeval'
-
-                    // Install kubectl and minikube CLI on the agent
-                    echo "Installing kubectl and minikube CLI..."
-                    // No need for sudo for moving binaries if running as root
-                    sh 'curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl'
-                    sh 'chmod +x ./kubectl'
-                    sh 'mv ./kubectl /usr/local/bin/kubectl'
-
-                    sh 'curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64'
-                    sh 'chmod +x minikube'
-                    sh 'mv minikube /usr/local/bin/'
-                    echo "Tools prepared."
+        stage('Lint') {
+            // For linting, we can use a separate Docker agent specifically designed for it
+            agent {
+                docker {
+                    image 'quay.io/jkub/kubernetes-linter:latest' // A good candidate for a pre-built image with linters
+                    // Alternatively, if the above doesn't exist or isn't suitable,
+                    // you'd build your own:
+                    // image 'your-registry/your-linter-image:latest'
+                    // This image needs to have `yamllint` and `kubeval` installed.
                 }
             }
-        }
-
-          stage('Lint') {
             steps {
                 script {
                     echo "Linting Kubernetes manifests..."
@@ -64,6 +60,8 @@ pipeline {
         }
 
         stage('Test') {
+            // Revert to the main agent or a specific one for testing if needed
+            agent any // or define a new 'docker' agent if this needs specific tools
             steps {
                 dir('app') {
                     sh 'npm install'
@@ -73,11 +71,10 @@ pipeline {
         }
 
         stage('Build Docker Image') {
+            agent any // Revert to the main agent that has Docker access
             steps {
                 script {
                     echo "Building Docker image ${IMAGE_TAG}..."
-                    // Build Docker image using the Dockerfile in the 'app' directory
-                    // This requires Docker daemon access, which will be provided by socket mounting
                     docker.build("${IMAGE_TAG}", './app')
                     echo "Docker image built."
                 }
@@ -85,16 +82,10 @@ pipeline {
         }
 
         stage('Push to Local Minikube Registry') {
+            agent any // Revert to the main agent that has minikube CLI
             steps {
                 script {
                     echo "Loading Docker image ${IMAGE_TAG} into minikube's Docker daemon."
-                    // This command runs on the Jenkins agent, which needs minikube client installed
-                    // and access to the minikube context.
-                    // For this to work, the Jenkins agent needs minikube CLI and kubectl CLI.
-                    // A simpler alternative for this specific step in a pipeline is to use
-                    // `docker save` and `docker load` via minikube ssh, but `minikube image load` is cleaner.
-                    // For this example, we'll assume minikube CLI is available on the agent.
-                    // If not, you'd need a custom agent image with minikube CLI.
                     sh "minikube image load ${IMAGE_TAG}"
                     echo "Simulated push of Docker image to local minikube registry."
                 }
@@ -102,18 +93,17 @@ pipeline {
         }
 
         stage('Deploy to Minikube EKS Namespace') {
+            agent any // Revert to the main agent that has kubectl
             steps {
                 script {
                     echo "Deploying Kubernetes resources to minikube in 'jenkins' namespace."
-                    // Ensure minikube context is set to deploy to
                     sh 'kubectl config use minikube'
-                    // Create namespace if it doesn't exist
                     sh 'kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -'
                     sh 'kubectl apply -f k8s/deployment.yaml -n jenkins'
                     sh 'kubectl apply -f k8s/service.yaml -n jenkins'
-                    sh 'kubectl apply -f k8s/ingress.yaml -n jenkins' // Requires minikube ingress addon enabled
+                    sh 'kubectl apply -f k8s/ingress.yaml -n jenkins'
                     sh 'kubectl apply -f k8s/configmap.yaml -n jenkins'
-                    sh 'kubectl apply -f k8s/secret.yaml -n jenkins' // Handle secret creation carefully in real scenarios
+                    sh 'kubectl apply -f k8s/secret.yaml -n jenkins'
 
                     echo "Simulated deploy to minikube EKS."
                 }
@@ -121,22 +111,19 @@ pipeline {
         }
 
         stage('Helm Deploy (Optional, for staging/production pipelines)') {
+            agent any // Revert to the main agent, or a Helm-specific agent
             steps {
                 script {
                     echo "Simulating Helm deployment for staging/production environments."
-                    // For actual Helm deployment in a staging/production pipeline (e.g., in a separate Jenkinsfile or stage)
-                    // The Jenkins agent would also need Helm CLI installed.
-                    // sh 'helm upgrade --install sample-node-app ./helm-chart -n jenkins --values ./helm-chart/values.yaml'
                     echo "Helm command would be: helm upgrade --install sample-node-app ./helm-chart -n jenkins --values ./helm-chart/values.yaml"
                 }
             }
         }
 
         stage('Notify') {
+            agent any
             steps {
                 echo 'Simulating Slack/email notification.'
-                // Example for Slack notification (requires Slack plugin in Jenkins)
-                // slackSend channel: '#devops-notifications', message: "Pipeline ${currentBuild.fullDisplayName} finished: ${currentBuild.result}"
             }
         }
     }
@@ -147,10 +134,6 @@ pipeline {
         }
         failure {
             echo 'Pipeline failed. Initiating rollback (if implemented).'
-            // Optional: Rollback on deploy failure
-            // In a real scenario, this would involve deploying a previous working version or reverting changes.
-            // For minikube, it might be `kubectl rollout undo deployment/your-app-deployment -n jenkins`
         }
     }
 }
-
