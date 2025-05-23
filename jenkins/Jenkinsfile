@@ -15,19 +15,43 @@ pipeline {
                 checkout scm
             }
         }
-
-        stage('Lint') {
+        stage('Prepare Agent Tools') {
             steps {
                 script {
-                    echo "Installing linting tools..."
-                    // Install yamllint (using pip, as npm package might be outdated or require Python)
-                    // Ensure Python and pip are available on the agent, or use a custom agent image
-                    // For a quick fix, if python/pip is not there, you might need to use a different installation method
-                    // For Alpine-based images (like the default Jenkins agent), apk add might be needed.
-                    // Assuming a basic agent image that can run pip:
+                    echo "Updating apk and installing build tools..."
+                    // Update apk and install common build tools
+                    sh 'apk update'
+                    sh 'apk add --no-cache git curl bash' // Ensure git, curl, bash are present
+
+                    echo "Installing linting and Node.js tools..."
+                    // Install Python and pip for yamllint
+                    sh 'apk add --no-cache python3 py3-pip'
                     sh 'pip install yamllint'
-                    // Install kubeval (using npm, assuming node/npm is available for the app's tests)
+
+                    // Install Node.js and npm for kubeval and app tests
+                    sh 'apk add --no-cache nodejs npm'
                     sh 'npm install -g kubeval'
+
+                    // Install kubectl and minikube CLI on the agent
+                    // Note: Installing minikube CLI directly via apk is not straightforward.
+                    // For a robust setup, consider a custom Jenkins agent image with these pre-installed.
+                    // For this example, we'll download kubectl and minikube binaries.
+                    echo "Installing kubectl and minikube CLI..."
+                    sh 'curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl'
+                    sh 'chmod +x ./kubectl'
+                    sh 'mv ./kubectl /usr/local/bin/kubectl'
+
+                    sh 'curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64'
+                    sh 'chmod +x minikube'
+                    sh 'mv minikube /usr/local/bin/'
+                    echo "Tools prepared."
+                }
+            }
+        }
+
+          stage('Lint') {
+            steps {
+                script {
                     echo "Linting Kubernetes manifests..."
                 }
                 // Yamllint for general YAML validation
