@@ -20,11 +20,6 @@ pipeline {
         }
 
         stage('Lint') {
-            agent {
-                docker {
-                    image 'ganeshru/kubernetes-linter:v1.0'
-                }
-            }
             steps {
                 sh 'echo "Container started successfully!"'
                 sh 'ls -la' // Keep this to confirm files are there later
