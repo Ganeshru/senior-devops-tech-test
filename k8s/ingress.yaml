@@ -1,12 +1,15 @@
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: sample-node-app-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: / # Required for minikube ingress controller
+    nginx.ingress.kubernetes.io/rewrite-target: / 
+    # Required for minikube ingress controller
 spec:
   rules:
-  - host: sample-node-app.info # You can use any dummy host, or omit for IP-based access
+  - host: sample-node-app.info 
+  # You can use any dummy host, or omit for IP-based access
     http:
       paths:
       - path: /
@@ -16,4 +19,3 @@ spec:
             name: sample-node-app-service
             port:
               number: 80
-

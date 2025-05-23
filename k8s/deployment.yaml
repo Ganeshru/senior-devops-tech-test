@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,7 +17,7 @@ spec:
     spec:
       containers:
       - name: sample-node-app
-        image: sample-node-app:latest # This will be replaced by the image built by Jenkins and loaded into minikube
+        image: sample-node-app:latest 
         imagePullPolicy: Never # to use local image
         ports:
         - containerPort: 8000 # As defined in server.js
@@ -45,4 +46,3 @@ spec:
             port: 8000
           initialDelaySeconds: 15
           periodSeconds: 20
-
