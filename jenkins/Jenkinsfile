@@ -23,7 +23,7 @@ pipeline {
                     echo "Updating apt and installing build tools..."
                     // No need for sudo/su if runAsUser: 0 is applied to the pod
                     sh 'apt-get update -y'
-                    sh 'apt-get install -y git curl bash' # Ensure git, curl, bash are present
+                    sh 'apt-get install -y git curl bash' // Ensure git, curl, bash are present
 
                     echo "Installing linting and Node.js tools..."
                     // Install Python and pip for yamllint
@@ -50,7 +50,7 @@ pipeline {
                 }
             }
         }
-        
+
           stage('Lint') {
             steps {
                 script {
