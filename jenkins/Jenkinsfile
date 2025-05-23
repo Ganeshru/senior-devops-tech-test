@@ -28,6 +28,7 @@ pipeline {
                 }
             }
             steps {
+                checkout scm
                 script {
                     echo "Linting Kubernetes manifests..."
                 }
