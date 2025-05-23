@@ -20,19 +20,14 @@ pipeline {
         }
 
         stage('Lint') {
-            // This stage uses your custom Docker image from Docker Hub for linting.
             agent {
                 docker {
-                    image 'ganeshru/kubernetes-linter:v1.0' // <--- Changed to your Docker Hub image
-                    // No need to mount docker socket here, this image just runs linters
+                    image 'ganeshru/kubernetes-linter:v1.0'
                 }
             }
             steps {
-                checkout scm
-                script {
-                    echo "Linting Kubernetes manifests..."
-                }
-                sh 'ls -la'
+                sh 'echo "Container started successfully!"'
+                sh 'ls -la' // Keep this to confirm files are there later
             }
         }
 
