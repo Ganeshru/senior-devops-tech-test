@@ -20,13 +20,11 @@ pipeline {
         }
 
         stage('Lint') {
-            // This stage uses a *different* Docker image specifically for linting.
-            // This image does NOT need Docker client or minikube, only yamllint and kubeval.
+            // This stage uses your custom Docker image from Docker Hub for linting.
             agent {
                 docker {
-                    image 'quay.io/jkub/kubernetes-linter:latest' // Or your custom linter image
+                    image 'ganeshru/kubernetes-linter:latest' // <--- Changed to your Docker Hub image
                     // No need to mount docker socket here, this image just runs linters
-                    // (and has no docker client anyway).
                 }
             }
             steps {
