@@ -1,0 +1,43 @@
+# jenkins-values.yaml
+# Custom values for Jenkins Helm Chart deployment
+
+controller:
+  serviceType: NodePort
+  jenkinsUrl: http://localhost:8080 # Adjust if your minikube IP is different
+  jenkins:
+    installPlugins:
+      - kubernetes:1.31.0
+      - workflow-job:1287.v81b_a_7366434c
+      - credentials-binding:648.v76c66d2b_b_b_0c
+      - git:5.2.0
+      - pipeline-github-lib:709.v4f0f188ce604
+      - configuration-as-code:1670.v5666f7ee1352
+      - slack:691.693.v34e6e65a_a_c51
+      - email-ext:2.107.0
+    securityRealm: unsecured # Keep this if you want unsecured access for local dev
+
+  # Configure pod templates for Jenkins agents
+  # This section is critical for Docker-in-Docker functionality
+  podTemplates:
+    - name: default
+      label: jenkins-agent # Label for the agent pod
+      containers:
+        - name: jnlp
+          image: jenkins/jnlp-agent:latest # Default JNLP agent image
+          args: '${computer.jnlpmac} ${computer.name}'
+          # Mount the Docker socket to allow Docker commands inside the agent
+          ttyEnabled: true
+          privileged: true # WARNING: 'privileged' is for development only. Not recommended for production.
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock # Path to the Docker socket on the Minikube VM
+            type: Directory
+      # Security Context for the agent pod
+      # This ensures the container runs with root privileges
+      securityContext:
+        runAsUser: 0 # Run the agent container as root (UID 0)
+        runAsGroup: 0 # Set the primary group to root (GID 0)
