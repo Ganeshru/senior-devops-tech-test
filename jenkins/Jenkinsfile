@@ -64,14 +64,14 @@ pipeline {
             // This stage needs kubectl. It runs on the default 'any' agent.
             steps {
                 script {
-                    echo "Deploying Kubernetes resources to minikube in 'jenkins' namespace."
+                    echo "Deploying Kubernetes resources to minikube in 'sample-app' namespace."
                     //sh 'kubectl config use minikube'
-                    sh 'kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -'
-                    sh 'kubectl apply -f k8s/deployment.yaml -n jenkins'
-                    sh 'kubectl apply -f k8s/service.yaml -n jenkins'
-                    sh 'kubectl apply -f k8s/ingress.yaml -n jenkins'
-                    sh 'kubectl apply -f k8s/configmap.yaml -n jenkins'
-                    sh 'kubectl apply -f k8s/secret.yaml -n jenkins'
+                    sh 'kubectl create namespace sample-app --dry-run=client -o yaml | kubectl apply -f -'
+                    sh 'kubectl apply -f k8s/deployment.yaml -n sample-app'
+                    sh 'kubectl apply -f k8s/service.yaml -n sample-app'
+                    sh 'kubectl apply -f k8s/ingress.yaml -n sample-app'
+                    sh 'kubectl apply -f k8s/configmap.yaml -n sample-app'
+                    sh 'kubectl apply -f k8s/secret.yaml -n sample-app'
 
                     echo "Simulated deploy to minikube EKS."
                 }
