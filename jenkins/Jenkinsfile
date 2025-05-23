@@ -1,31 +1,13 @@
 pipeline {
-    // Change agent from 'any' to a specific Docker image
-    agent {
-        docker {
-            // Use an existing open-source image with linting tools,
-            // or build your own.
-            // Some options:
-            // 1. A generic DevOps image: 'alpine/git:latest' might have some, but not all.
-            // 2. Images specifically for CI/CD with Kubernetes tools:
-            //    'lachlanevans/k8s-kubectl:latest' often includes kubectl.
-            //    You might need to find one that also pre-installs yamllint and kubeval,
-            //    or build your own on top of such an image.
-            // For demonstration, let's assume we'll use a base image and install them,
-            // or ideally, you'd find a pre-built one.
-            // If you can't find one, you'll need to create your own Dockerfile.
-            image 'python:3.9-slim-buster' // A common base for installing python tools like yamllint
-            args '-v /var/run/docker.sock:/var/run/docker.sock' // Keep Docker socket mounting for builds
-            // Ensure minikube's kubectl config is accessible if needed within this container
-            // -v "${env.HOME}/.kube:/root/.kube" might be needed if kubectl commands are run directly here.
-            // For `minikube image load`, the minikube CLI is needed.
-            // This setup becomes more complex. Let's simplify and suggest a custom image for the linting stage.
-        }
-    }
+    // Keep the main agent as 'any'.
+    // This 'any' agent is expected to be your custom Jenkins agent pod
+    // that has Docker CLI, kubectl, and minikube installed, and
+    // /var/run/docker.sock mounted from the host.
+    agent any
 
     environment {
-        // Mock AWS variables for demonstration with minikube
         AWS_REGION = 'us-east-1'
-        ECR_REPO = 'your-ecr-repo-url' // Placeholder, won't be used directly with minikube's internal registry
+        ECR_REPO = 'your-ecr-repo-url'
         IMAGE_TAG = "sample-node-app:${env.BUILD_NUMBER}"
         KUBECONFIG = "${env.HOME}/.kube/config" // Ensure minikube context is active
     }
@@ -38,43 +20,41 @@ pipeline {
         }
 
         stage('Lint') {
-            // For linting, we can use a separate Docker agent specifically designed for it
+            // This stage uses a *different* Docker image specifically for linting.
+            // This image does NOT need Docker client or minikube, only yamllint and kubeval.
             agent {
                 docker {
-                    image 'quay.io/jkub/kubernetes-linter:latest' // A good candidate for a pre-built image with linters
-                    // Alternatively, if the above doesn't exist or isn't suitable,
-                    // you'd build your own:
-                    // image 'your-registry/your-linter-image:latest'
-                    // This image needs to have `yamllint` and `kubeval` installed.
+                    image 'quay.io/jkub/kubernetes-linter:latest' // Or your custom linter image
+                    // No need to mount docker socket here, this image just runs linters
+                    // (and has no docker client anyway).
                 }
             }
             steps {
                 script {
                     echo "Linting Kubernetes manifests..."
                 }
-                // Yamllint for general YAML validation
                 sh 'yamllint k8s/'
-                // kubeval for Kubernetes manifest validation
                 sh 'kubeval k8s/'
             }
         }
 
         stage('Test') {
-            // Revert to the main agent or a specific one for testing if needed
-            agent any // or define a new 'docker' agent if this needs specific tools
+            // This stage runs on the default 'any' agent, which has npm.
             steps {
                 dir('app') {
                     sh 'npm install'
-                    sh 'npm test' // This will run the mocked test in package.json
+                    sh 'npm test'
                 }
             }
         }
 
         stage('Build Docker Image') {
-            agent any // Revert to the main agent that has Docker access
+            // This stage needs Docker. It runs on the default 'any' agent,
+            // which is assumed to have Docker client and socket access.
             steps {
                 script {
                     echo "Building Docker image ${IMAGE_TAG}..."
+                    // docker.build implicitly uses the Docker client available to the agent
                     docker.build("${IMAGE_TAG}", './app')
                     echo "Docker image built."
                 }
@@ -82,7 +62,7 @@ pipeline {
         }
 
         stage('Push to Local Minikube Registry') {
-            agent any // Revert to the main agent that has minikube CLI
+            // This stage needs minikube CLI. It runs on the default 'any' agent.
             steps {
                 script {
                     echo "Loading Docker image ${IMAGE_TAG} into minikube's Docker daemon."
@@ -93,7 +73,7 @@ pipeline {
         }
 
         stage('Deploy to Minikube EKS Namespace') {
-            agent any // Revert to the main agent that has kubectl
+            // This stage needs kubectl. It runs on the default 'any' agent.
             steps {
                 script {
                     echo "Deploying Kubernetes resources to minikube in 'jenkins' namespace."
@@ -111,7 +91,7 @@ pipeline {
         }
 
         stage('Helm Deploy (Optional, for staging/production pipelines)') {
-            agent any // Revert to the main agent, or a Helm-specific agent
+            // This stage would need Helm CLI. It runs on the default 'any' agent.
             steps {
                 script {
                     echo "Simulating Helm deployment for staging/production environments."
@@ -121,7 +101,6 @@ pipeline {
         }
 
         stage('Notify') {
-            agent any
             steps {
                 echo 'Simulating Slack/email notification.'
             }
